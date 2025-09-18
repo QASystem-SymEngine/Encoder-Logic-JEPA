@@ -1,4 +1,3 @@
-import copy
 import math
 import time
 import torch
@@ -47,7 +46,9 @@ class Solver:
                     print(f"[Info] Loading {name} (best) from {best_path}")
                     return cls(model_name=cfg.model_name, encoder_state_path=best_path)
 
-                print(f"[Info] No checkpoint found, loading pretrained {cfg.model_name} instead.")
+                print(
+                    f"[Info] No checkpoint found, loading pretrained {cfg.model_name} instead."
+                )
             return cls(model_name=getattr(cfg, "model_name", "t5-base"))
 
         # Context Encoder
@@ -71,8 +72,10 @@ class Solver:
             self.hidden_size = 512
 
         # Mask embedding (khởi tạo vector duy nhất)
-        self.mask_embedding = nn.Parameter(torch.randn(self.hidden_size, device=self.device))
-        
+        self.mask_embedding = nn.Parameter(
+            torch.randn(self.hidden_size, device=self.device)
+        )
+
         self.best_val_loss = float("inf")
 
         # Di chuyển mô hình sang GPU nếu không sử dụng CPU
@@ -138,7 +141,7 @@ class Solver:
                 batch = next(data_yielder)
 
                 # 1) Lấy danh sách text từ batch
-                nl_list = [sample["text"] for sample in batch["text_tokens"]]  
+                nl_list = [sample["text"] for sample in batch["text_tokens"]]
 
                 # 1a) Loại bỏ khoảng trắng trước <extra_id_0> -> sẽ improve data chỗ này lại sau.
                 nl_list = [
@@ -173,7 +176,9 @@ class Solver:
                         cm = cm[:seq_len]
                     context_mask_list.append(cm)
 
-                context_mask = torch.tensor(context_mask_list, device=input_context_ids.device)
+                context_mask = torch.tensor(
+                    context_mask_list, device=input_context_ids.device
+                )
 
                 # 3) Di chuyển sang GPU nếu cần
                 if self.cfg.device == "cuda" and torch.cuda.is_available():
@@ -307,10 +312,10 @@ class Solver:
                     {
                         "context_encoder": self.context_encoder,
                         "target_encoder": self.target_encoder,
-                        "predictor": self.predictor
+                        "predictor": self.predictor,
                     },
                     save_dir=self.paths.model_dir,
-                    tag = f"best"
+                    tag=f"best",
                 )
 
     @torch.no_grad()
@@ -326,7 +331,9 @@ class Solver:
         for step, batch in enumerate(data_yielder):
             # 1) Lấy text từ batch
             nl_list = [sample["text"] for sample in batch["text_tokens"]]
-            nl_list = [text.replace(" <extra_id_0>", "<extra_id_0>") for text in nl_list]
+            nl_list = [
+                text.replace(" <extra_id_0>", "<extra_id_0>") for text in nl_list
+            ]
 
             src = self.tokenizer(
                 nl_list,
@@ -351,7 +358,9 @@ class Solver:
                     cm = cm[:seq_len]
                 context_mask_list.append(cm)
 
-            context_mask = torch.tensor(context_mask_list, device=input_context_ids.device)
+            context_mask = torch.tensor(
+                context_mask_list, device=input_context_ids.device
+            )
 
             if self.cfg.device == "cuda" and torch.cuda.is_available():
                 input_context_ids = input_context_ids.to(self.device)
@@ -364,14 +373,20 @@ class Solver:
             batch_size, seq_len, hidden_size = context_hidden.shape
             mask_positions = (context_mask == 0).float().unsqueeze(-1)
             mask_embedding_expanded = (
-                self.mask_embedding.unsqueeze(0).unsqueeze(0).expand(batch_size, seq_len, hidden_size)
+                self.mask_embedding.unsqueeze(0)
+                .unsqueeze(0)
+                .expand(batch_size, seq_len, hidden_size)
             )
             context_hidden_masked = (
-                context_hidden * (1 - mask_positions) + mask_embedding_expanded * mask_positions
+                context_hidden * (1 - mask_positions)
+                + mask_embedding_expanded * mask_positions
             )
 
             positions = (
-                torch.arange(seq_len).unsqueeze(0).expand(batch_size, seq_len).to(context_hidden_masked.device)
+                torch.arange(seq_len)
+                .unsqueeze(0)
+                .expand(batch_size, seq_len)
+                .to(context_hidden_masked.device)
             )
             pos_emb = self.positional_embedding(positions)
             context_hidden_with_pos = context_hidden_masked + pos_emb

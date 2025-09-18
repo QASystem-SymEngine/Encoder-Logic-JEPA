@@ -1,12 +1,4 @@
 from __future__ import print_function
-from typing import Dict, List
-import numpy as np
-import random
-import json
-import os
-import re
-import torch
-from transformers import T5Tokenizer
 from utils import *
 
 
@@ -59,7 +51,11 @@ class ProcessData:
             if isinstance(ast_nl, dict):
                 ast_nl = [ast_nl]
 
-            if isinstance(ast_fol, list) and len(ast_fol) == 1 and isinstance(ast_fol[0], dict):
+            if (
+                isinstance(ast_fol, list)
+                and len(ast_fol) == 1
+                and isinstance(ast_fol[0], dict)
+            ):
                 ast_fol = ast_fol[0]
 
             text_tokens = _norm_one(text_tokens)
@@ -74,7 +70,7 @@ class ProcessData:
                     "topic": batch["topic"],
                     "ast_nl": batch["ast_nl"],
                     "ast_fol": batch["ast_fol"],
-                    "text_tokens": batch["text_tokens"]
+                    "text_tokens": batch["text_tokens"],
                 }
                 batch = {"topic": [], "ast_nl": [], "ast_fol": [], "text_tokens": []}
 
