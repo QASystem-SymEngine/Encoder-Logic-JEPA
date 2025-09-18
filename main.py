@@ -9,9 +9,7 @@ def parse_args():
     p = argparse.ArgumentParser()
 
     # Data / IO
-    p.add_argument(
-        "--train_path", default="./data/train_dataset.jsonl"
-    )
+    p.add_argument("--train_path", default="./data/train_dataset.jsonl")
     p.add_argument("--val_path", default="./data/val_dataset.jsonl")
     p.add_argument("--data_dir", default="saved_data")
     p.add_argument("--model_dir", default="saved_models")
@@ -20,13 +18,13 @@ def parse_args():
     p.add_argument("--train", type=int, default=1)
     p.add_argument("--batch_size", type=int, default=3)
     p.add_argument("--num_epochs", type=int, default=10)
-    p.add_argument("--lr", type=float, default=1e-4)
+    p.add_argument("--lr", type=float, default=3e-5)
     p.add_argument("--ema_decay", type=float, default=0.999)
-    p.add_argument("--log_every", type=int, default=50)
+    p.add_argument("--log_every", type=int, default=20)
 
     # model
     p.add_argument("--model_name", type=str, default="t5-base")
-    p.add_argument("--max_lengh", type=int, default=512)
+    p.add_argument("--max_length", type=int, default=512)
     p.add_argument("--is_load_state_dict", type=bool, default=True)
 
     p.add_argument("--device", default="cuda", choices=["cpu", "cuda", "mps"])
@@ -50,8 +48,8 @@ def parse_args():
         log_every=args.log_every,
         model_name=args.model_name,
         device=args.device,
-        max_lengh=args.max_lengh,
-        is_load_state_dict=args.is_load_state_dict
+        max_length=args.max_length,
+        is_load_state_dict=args.is_load_state_dict,
     )
 
     return paths, cfg

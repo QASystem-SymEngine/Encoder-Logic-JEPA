@@ -111,8 +111,8 @@ class Solver:
 
         scheduler = get_cosine_schedule_with_warmup(
             optimizer,
-            num_warmup_steps=500,
-            num_training_steps=10000,
+            num_warmup_steps=int(0.05 * self.total_steps),  # vd warmup 5%
+            num_training_steps=self.total_steps,
         )
 
         beta = self.cfg.ema_decay  # ví dụ: 0.999
@@ -134,7 +134,7 @@ class Solver:
             for step in range(self.steps_per_epoch):
                 # Chuyển mô hình sang chế độ huấn luyện (bật dropout, batch normalization, v.v.).
                 self.context_encoder.train()
-                self.target_encoder.train()
+                self.target_encoder.eval()
                 self.predictor.train()
 
                 # Lấy một batch dữ liệu từ data_yielder.
@@ -151,7 +151,7 @@ class Solver:
                 # 2) Tokenize source (KHÔNG pad)
                 src = self.tokenizer(
                     nl_list,
-                    max_length=self.cfg.max_lengh,
+                    max_length=self.cfg.max_length,
                     add_special_tokens=False,
                     truncation=True,
                     padding="longest",  # pad tất cả về cùng chiều dài của câu dài nhất trong batch
@@ -266,14 +266,10 @@ class Solver:
                 mse_loss = nn.MSELoss(reduction="mean")
                 loss = mse_loss(masked_pred, masked_target)
 
-                # ---- BACKPROP ----
-                self.context_encoder.zero_grad()
-                self.predictor.zero_grad()
-                loss.backward()
-
                 # ---- OPTIMIZER ----
+                optimizer.zero_grad()
+                loss.backward()
                 optimizer.step()
-                scheduler.step()
 
                 # ---- EMA cập nhật target encoder ----
                 for param_q, param_k in zip(
@@ -317,6 +313,8 @@ class Solver:
                     save_dir=self.paths.model_dir,
                     tag=f"best",
                 )
+        wandb.finish()
+        print("Training completed.")
 
     @torch.no_grad()
     def evaluate(self, epoch):
@@ -337,7 +335,7 @@ class Solver:
 
             src = self.tokenizer(
                 nl_list,
-                max_length=self.cfg.max_lengh,
+                max_length=self.cfg.max_length,
                 add_special_tokens=False,
                 truncation=True,
                 padding="longest",
@@ -415,5 +413,3 @@ class Solver:
         avg_val_loss = sum(val_losses) / len(val_losses)
         print(f"Validation Loss after Epoch {epoch+1}: {avg_val_loss:.4f}")
         return avg_val_loss
-
-        wandb.finish()
