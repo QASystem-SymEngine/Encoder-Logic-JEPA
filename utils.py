@@ -1,12 +1,7 @@
 from __future__ import print_function
 from typing import Dict, List
-import numpy as np
-import random
 import json
 import os
-import re
-import torch
-from transformers import T5Tokenizer
 
 
 def read_json(file_path):
@@ -31,6 +26,7 @@ def save_json_file(data, file_path):
     except Exception as e:
         print(f"Error saving JSON to {file_path}: {e}")
 
+
 def load_jsonl_dataset(jsonl_file: str) -> List[Dict]:
     """Đọc toàn bộ file .jsonl, mỗi dòng là 1 dict."""
     data = []
@@ -47,10 +43,12 @@ def load_jsonl_dataset(jsonl_file: str) -> List[Dict]:
     print(f"✅ Loaded {len(data)} samples từ {jsonl_file}")
     return data
 
+
 def batchify(data, batch_size: int):
     """Chia data thành batch."""
     for i in range(0, len(data), batch_size):
-        yield data[i:i+batch_size]
+        yield data[i : i + batch_size]
+
 
 def save_jsonl_file(data, path):
     with open(path, "w", encoding="utf-8") as f:
