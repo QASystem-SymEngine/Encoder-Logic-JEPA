@@ -1,7 +1,10 @@
 from __future__ import print_function
+import random
 from typing import Dict, List
 import json
 import os
+import torch.nn as nn
+import torch
 
 
 def read_json(file_path):
@@ -61,3 +64,14 @@ def make_save_dir(save_dir):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     return save_dir
+
+
+# ================== Utils ==================
+def set_seed(seed: int = 1234):
+    random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+
+def count_params(model: nn.Module) -> int:
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)

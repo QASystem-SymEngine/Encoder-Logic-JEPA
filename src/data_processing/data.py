@@ -24,25 +24,13 @@ class ProcessData:
 
     def batch_yielder(self):
         """Hàm chung cho train/val/test"""
-        batch = {"topic": [], "ast_nl": [], "ast_fol": [], "text_tokens": []}
+        batch = {"topic": [], "ast_nl": [], "ast_fol": []}
         batch_size = self.batch_size
-
-        def _norm_one(x):
-            if isinstance(x, dict):
-                return x
-            if isinstance(x, list):
-                if len(x) == 0:
-                    return {}
-                if len(x) == 1 and isinstance(x[0], dict):
-                    return x[0]
-                return x[0]
-            return x
 
         for sample in self.data:
             topic = sample.get("topic")
             ast_nl = sample.get("ast_nl", [])
             ast_fol = sample.get("ast_fol", [])
-            text_tokens = sample.get("text_tokens", [])
 
             if isinstance(ast_nl, dict):
                 ast_nl = [ast_nl]
@@ -54,21 +42,17 @@ class ProcessData:
             ):
                 ast_fol = ast_fol[0]
 
-            text_tokens = _norm_one(text_tokens)
-
             batch["topic"].append(topic)
             batch["ast_nl"].append(ast_nl)
             batch["ast_fol"].append(ast_fol)
-            batch["text_tokens"].append(text_tokens)
 
-            if len(batch["text_tokens"]) >= batch_size:
+            if len(batch["ast_fol"]) >= batch_size:
                 yield {
                     "topic": batch["topic"],
                     "ast_nl": batch["ast_nl"],
                     "ast_fol": batch["ast_fol"],
-                    "text_tokens": batch["text_tokens"],
                 }
-                batch = {"topic": [], "ast_nl": [], "ast_fol": [], "text_tokens": []}
+                batch = {"topic": [], "ast_nl": [], "ast_fol": []}
 
-        if batch["text_tokens"]:
+        if batch["ast_fol"]:
             yield batch
