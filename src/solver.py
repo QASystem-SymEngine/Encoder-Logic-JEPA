@@ -2,14 +2,16 @@ import math
 import time
 import torch
 import os
+import torch.nn as nn
+from model.jepa import JEPAEncoder, JEPAPredictor, init_sinusoidal_embeddings
+from model.models import ASTEncoder, load_tokenizer, save_best_model
 from src.data_processing.data import ProcessData
-from src.model.models import *
 
-from src.utils.util import *
-from src.model.jepa import *
 from transformers import get_cosine_schedule_with_warmup
 
 import wandb
+
+from utils.util import make_save_dir
 
 
 class Solver:
@@ -221,24 +223,6 @@ class Solver:
                 context_hidden_with_pos = (
                     context_hidden_masked + pos_emb
                 )  # [batch_size, seq_len, hidden_size]
-
-                # 4) Encode AST (batch["ast_fol"] là list[dict])
-                ast_fol_out = self.ast_encoder.process_batch(batch["ast_fol"])
-                # ast_batch_out là list[dict] với key: node_embeddings, node_name_map, token_init_embeddings, tokens_map
-
-                # Encode AST for NL
-                ast_nl_out = self.ast_encoder.process_ast_nl_batch(batch["ast_nl"])
-
-                # === Inject AST với scale nhỏ hơn ===
-                context_hidden_with_ast_fol = self.ast_encoder.inject_ast_embeddings(
-                    batch, ast_fol_out, context_hidden_with_pos, input_context_ids
-                )
-                context_hidden_with_ast_fol *= 0.8  # scale giảm nhẹ
-
-                context_hidden_with_ast_nl = self.ast_encoder.inject_ast_embeddings_nl(
-                    batch, ast_nl_out, context_hidden_with_ast_fol, input_context_ids
-                )
-                context_hidden_with_ast_nl *= 0.8
 
                 predicted_rep = self.predictor(
                     context_hidden_with_ast_nl, attention_mask

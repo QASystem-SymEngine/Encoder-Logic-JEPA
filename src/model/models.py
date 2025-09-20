@@ -9,6 +9,7 @@ from typing import Dict, Any
 import os
 import torch
 
+
 def load_tokenizer(
     model_name: str,
 ) -> Tuple[T5TokenizerFast, T5ForConditionalGeneration]:
@@ -28,6 +29,7 @@ def freeze_encoder(model: T5ForConditionalGeneration) -> None:
     for p in model.encoder.parameters():
         p.requires_grad = False
 
+
 def save_best_model(model_dict: dict, save_dir: str, tag: str):
     """
     Lưu state_dict của từng thành phần trong JEPA.
@@ -43,6 +45,7 @@ def save_best_model(model_dict: dict, save_dir: str, tag: str):
         save_path = os.path.join(save_dir, f"{name}_{tag}.pth")
         torch.save(state_dict, save_path)
         print(f"[Info] Saved {name} -> {save_path}")
+
 
 class ASTEncoder:
     def __init__(
@@ -131,29 +134,6 @@ class ASTEncoder:
 
         return {"node_embeddings": node_embeddings, "node_name_map": node_name_map}
 
-    def process_one_2(self, data: dict):
-        """Xử lý 1 dòng json."""
-        token_init_embeddings: Dict[int, torch.Tensor] = {}
-        for tok_str, tid in data.get("tokens", []):
-            tid = int(tid)
-            if tok_str in self.cache_tokenstr_to_emb:
-                token_init_embeddings[tid] = self.cache_tokenstr_to_emb[tok_str]
-            else:
-                emb = self.build_token_embedding_from_t5(
-                    tok_str,
-                    self.tokenizer,
-                    self.embedding_matrix,
-                    self.device,
-                    agg=self.agg,
-                )
-                self.cache_tokenstr_to_emb[tok_str] = emb
-                token_init_embeddings[tid] = emb
-
-        out = self.encode_from_json_with_token_init(data, token_init_embeddings)
-        out["token_init_embeddings"] = token_init_embeddings
-        out["tokens_map"] = {int(tid): tok for tok, tid in data.get("tokens", [])}
-        return out
-
     def process_one(self, data: dict):
         """Xử lý 1 dòng json."""
         token_init_embeddings: Dict[int, torch.Tensor] = {}
@@ -187,7 +167,7 @@ class ASTEncoder:
 
     def process_ast_nl_batch(self, ast_nl_batch):
         """
-        ast_nl_batch: list[list[dict]], 
+        ast_nl_batch: list[list[dict]],
             mỗi phần tử là 1 topic_ast = list các dict (mỗi dict là 1 expression trong topic).
         Trả về list[list], mỗi topic -> list kết quả ASTEncoder cho từng expression
         """
