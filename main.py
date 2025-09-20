@@ -2,21 +2,21 @@ import argparse
 from types import SimpleNamespace
 
 import wandb
-from solver import Solver
+from src.solver import Solver
 
 
 def parse_args():
     p = argparse.ArgumentParser()
 
     # Data / IO
-    p.add_argument("--train_path", default="./data/train_dataset.jsonl")
-    p.add_argument("--val_path", default="./data/val_dataset.jsonl")
+    p.add_argument("--train_path", default="./data/train_samples.jsonl")
+    p.add_argument("--val_path", default="./data/train_samples.jsonl")
     p.add_argument("--data_dir", default="saved_data")
     p.add_argument("--model_dir", default="saved_models")
 
     # Training
     p.add_argument("--train", type=int, default=1)
-    p.add_argument("--batch_size", type=int, default=4)
+    p.add_argument("--batch_size", type=int, default=1)
     p.add_argument("--num_epochs", type=int, default=8)
     p.add_argument("--lr", type=float, default=3e-5)  # nhỏ hơn cho ổn định
     p.add_argument("--ema_decay", type=float, default=0.999)
@@ -27,7 +27,8 @@ def parse_args():
     p.add_argument("--max_length", type=int, default=512)
     p.add_argument("--is_load_state_dict", type=bool, default=True)
 
-    p.add_argument("--device", default="cuda", choices=["cpu", "cuda", "mps"])
+    p.add_argument("--device", default="cpu", choices=["cpu", "cuda", "mps"])
+    p.add_argument("--use_wandb", type=bool, default=False)
 
     args = p.parse_args()
 
@@ -50,6 +51,7 @@ def parse_args():
         device=args.device,
         max_length=args.max_length,
         is_load_state_dict=args.is_load_state_dict,
+        use_wandb=args.use_wandb,
     )
 
     return paths, cfg
@@ -58,8 +60,8 @@ def parse_args():
 if __name__ == "__main__":
     paths, cfg = parse_args()
 
-    # Nếu dùng wandb
-    wandb.login(key="")
+    if cfg.use_wandb:
+        wandb.login(key="")
 
     # Giả sử Solver là class huấn luyện
     solver = Solver(paths, cfg)
