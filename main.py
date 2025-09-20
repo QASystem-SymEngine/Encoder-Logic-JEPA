@@ -16,9 +16,9 @@ def parse_args():
 
     # Training
     p.add_argument("--train", type=int, default=1)
-    p.add_argument("--batch_size", type=int, default=3)
-    p.add_argument("--num_epochs", type=int, default=10)
-    p.add_argument("--lr", type=float, default=3e-5)
+    p.add_argument("--batch_size", type=int, default=4)
+    p.add_argument("--num_epochs", type=int, default=8)
+    p.add_argument("--lr", type=float, default=3e-5)  # nhỏ hơn cho ổn định
     p.add_argument("--ema_decay", type=float, default=0.999)
     p.add_argument("--log_every", type=int, default=20)
 
@@ -59,7 +59,7 @@ if __name__ == "__main__":
     paths, cfg = parse_args()
 
     # Nếu dùng wandb
-    wandb.login(key="d83175b72ab7d073e2ed4f0e60ef001c11cd4555")
+    wandb.login(key="")
 
     # Giả sử Solver là class huấn luyện
     solver = Solver(paths, cfg)

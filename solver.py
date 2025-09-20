@@ -87,20 +87,14 @@ class Solver:
             self.mask_embedding = self.mask_embedding.to(self.device)
 
     def train(self):
-        # Tính tổng số tham số có thể huấn luyện
-        total_params = 0
-        for name, param in (
-            list(self.context_encoder.named_parameters())
-            + list(self.target_encoder.named_parameters())
-            + list(self.predictor.named_parameters())
-        ):
-            if param.requires_grad:
-                param_count = param.numel()
-                total_params += param_count
-
+        total_params = sum(
+            p.numel()
+            for p in list(self.context_encoder.parameters())
+            + list(self.predictor.parameters())
+            if p.requires_grad
+        )
         print("Total trainable parameters:", total_params)
 
-        # Cập nhật tham số context encoder & predictor
         optimizer = torch.optim.Adam(
             list(self.context_encoder.parameters())
             + list(self.predictor.parameters())
@@ -111,13 +105,15 @@ class Solver:
 
         scheduler = get_cosine_schedule_with_warmup(
             optimizer,
-            num_warmup_steps=int(0.05 * self.total_steps),  # vd warmup 5%
+            num_warmup_steps=int(0.05 * self.total_steps),
             num_training_steps=self.total_steps,
         )
 
-        beta = self.cfg.ema_decay  # ví dụ: 0.999
+        beta = self.cfg.ema_decay
+        accumulation_steps = (
+            8  # cộng dồn gradient, giả sử batch hiệu quả = batch_size * 8
+        )
 
-        # Khởi tạo wandb
         wandb.init(
             project=os.environ.get("WANDB_PROJECT", "Logic-JEPA-Pretrain"),
             name=os.environ.get("WANDB_NAME", "Logic-JEPA-Pretrain-18-09"),
@@ -126,20 +122,20 @@ class Solver:
 
         for epoch in range(self.cfg.num_epochs):
             print(f"\n=== Epoch {epoch + 1}/{self.cfg.num_epochs} ===")
-            # Gọi hàm từ lớp data_utils để tạo một iterator cung cấp các batch dữ liệu huấn luyện.
             data_yielder = self.train_data.batch_yielder()
             epoch_loss = []
             start = time.time()
 
+            optimizer.zero_grad()
+
             for step in range(self.steps_per_epoch):
-                # Chuyển mô hình sang chế độ huấn luyện (bật dropout, batch normalization, v.v.).
                 self.context_encoder.train()
                 self.target_encoder.eval()
                 self.predictor.train()
 
-                # Lấy một batch dữ liệu từ data_yielder.
                 batch = next(data_yielder)
 
+                # ... (tokenize + context_hidden như code bạn giữ nguyên) ...
                 # 1) Lấy danh sách text từ batch
                 nl_list = [sample["text"] for sample in batch["text_tokens"]]
 
@@ -186,7 +182,7 @@ class Solver:
                     attention_mask = attention_mask.to(self.device)
                     context_mask = context_mask.to(self.device)
 
-                # ---- FORWARD ----
+                    # ---- FORWARD ----
                 # 1. Forward context encoder (nhận representation từ câu context)
                 context_hidden = self.context_encoder(
                     input_context_ids, attention_mask
@@ -231,61 +227,69 @@ class Solver:
                 # Encode AST for NL
                 ast_nl_out = self.ast_encoder.process_ast_nl_batch(batch["ast_nl"])
 
+                # === Inject AST với scale nhỏ hơn ===
                 context_hidden_with_ast_fol = self.ast_encoder.inject_ast_embeddings(
                     batch, ast_fol_out, context_hidden_with_pos, input_context_ids
                 )
+                context_hidden_with_ast_fol *= 0.8  # scale giảm nhẹ
 
                 context_hidden_with_ast_nl = self.ast_encoder.inject_ast_embeddings_nl(
                     batch, ast_nl_out, context_hidden_with_ast_fol, input_context_ids
                 )
+                context_hidden_with_ast_nl *= 0.8
 
-                # 2. Đưa hidden state của context encoder qua predictor
                 predicted_rep = self.predictor(
                     context_hidden_with_ast_nl, attention_mask
-                )  # (batch, seq_len, 512)
+                )
 
-                # 3. Forward target encoder, detach để không lan truyền gradient
                 with torch.no_grad():
                     target_rep = self.target_encoder(
                         input_context_ids, attention_mask
-                    )  # (batch, seq_len, 512)
-                    target_rep = target_rep.detach()
+                    ).detach()
 
-                # ---- LOSS ----
-                # Tính MSE loss chỉ tại các vị trí mask
                 mask_indices = (
                     (context_mask == 0).unsqueeze(-1).expand_as(predicted_rep)
-                )  # [batch_size, seq_len, hidden_size]
-                masked_pred = predicted_rep[mask_indices].view(
-                    -1, hidden_size
-                )  # [num_masked_positions, hidden_size]
-                masked_target = target_rep[mask_indices].view(
-                    -1, hidden_size
-                )  # [num_masked_positions, hidden_size]
+                )
+                masked_pred = predicted_rep[mask_indices].view(-1, self.hidden_size)
+                masked_target = target_rep[mask_indices].view(-1, self.hidden_size)
 
                 mse_loss = nn.MSELoss(reduction="mean")
                 loss = mse_loss(masked_pred, masked_target)
 
-                # ---- OPTIMIZER ----
-                optimizer.zero_grad()
+                # === Gradient accumulation ===
+                loss = loss / accumulation_steps
                 loss.backward()
-                optimizer.step()
 
-                # ---- EMA cập nhật target encoder ----
-                for param_q, param_k in zip(
-                    self.context_encoder.parameters(), self.target_encoder.parameters()
-                ):
-                    param_k.data = beta * param_k.data + (1.0 - beta) * param_q.data
+                # Clip grad để tránh nổ
+                torch.nn.utils.clip_grad_norm_(
+                    list(self.context_encoder.parameters())
+                    + list(self.predictor.parameters())
+                    + list(self.positional_embedding.parameters())
+                    + [self.mask_embedding],
+                    max_norm=1.0,
+                )
 
-                epoch_loss.append(loss.item())
+                if (step + 1) % accumulation_steps == 0:
+                    optimizer.step()
+                    scheduler.step()
+                    optimizer.zero_grad()
+
+                    # EMA update target encoder
+                    for param_q, param_k in zip(
+                        self.context_encoder.parameters(),
+                        self.target_encoder.parameters(),
+                    ):
+                        param_k.data = beta * param_k.data + (1.0 - beta) * param_q.data
+
+                epoch_loss.append(loss.item() * accumulation_steps)  # scale lại để log
 
                 if step % self.cfg.log_every == 0:
                     print(
-                        f"[Epoch {epoch + 1} | Step {step}] Step Loss: {loss.item():.4f}"
+                        f"[Epoch {epoch + 1} | Step {step}] Step Loss: {loss.item() * accumulation_steps:.4f}"
                     )
                     wandb.log(
                         {
-                            "step_loss": loss.item(),
+                            "step_loss": loss.item() * accumulation_steps,
                             "epoch": epoch + 1,
                             "step": step + epoch * self.steps_per_epoch,
                         }
